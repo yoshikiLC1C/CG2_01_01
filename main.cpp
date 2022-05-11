@@ -12,9 +12,15 @@
 // D3Dコンパイラのインクルード
 #include <d3dcompiler.h>
 
+#define DIRECTINPUT_VERSION 0x0800
+#include<dinput.h>
+
 #pragma comment(lib,"d3d12.lib")
 #pragma comment(lib,"dxgi.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+
+#pragma comment(lib,"dinput8.lib")
+#pragma comment(lib,"dxguid.lib")
 
 using namespace DirectX;// 数学ライブラリーのインクルード
 
@@ -38,7 +44,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	OutputDebugStringA("Hello,DirectX!!\n");
 
 	// ウィンドウサイズ
-	const int window_width = 1200;
+	const int window_width = 1280;
 	const int window_height = 720;
 
 	// ウィンドウクラスの設定
@@ -217,8 +223,31 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	result = device->CreateFence(fenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
 
+	// DirectInputの初期化
+	IDirectInput8* directInput = nullptr;
+	result = DirectInput8Create(w.hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8,
+		(void**)&directInput, nullptr);
+	assert(SUCCEEDED(result));
+
+	// キーボードデバイスの生成
+	IDirectInputDevice8* keyboard = nullptr;
+	result = directInput->CreateDevice(GUID_SysKeyboard, &keyboard, NULL);
+	assert(SUCCEEDED(result));
+
+	// 入力データ形式のセット
+	result = keyboard->SetDataFormat(&c_dfDIKeyboard);
+	assert(SUCCEEDED(result));
+
+	// 排他制御レベルのリセット
+
+	result = keyboard->SetCooperativeLevel(hwnd,
+		DISCL_FOREGROUND | DISCL_NONEXCLUSIVE | DISCL_NOWINKEY);
+	assert(SUCCEEDED(result));
+
 	//・・ DirectX初期化処理　ここまで
 	
+
+
 	//・・ 描画初期化処理　ここから
 
 	// 頂点のデータ
@@ -335,6 +364,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 			D3D12_APPEND_ALIGNED_ELEMENT,
 			D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0
 		},
+		// 座標以外に色、テクスチャUVなどを渡す場合はさらに続ける
+		
 	};
 
 	// グラフィックスパイプライン設定
@@ -409,6 +440,24 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		}
 
 		//・・ DirectX毎フレーム処理　ここから
+
+		//キーボード情報の取得開始
+		keyboard->Acquire();
+
+		// 全キーの入力状況を取得
+		BYTE key[256] = {};
+		keyboard->GetDeviceState(sizeof(key), key);
+
+		// 数字の0キーが押されていたら
+		if (key[DIK_0])
+		{
+			OutputDebugStringA("Hit 0\n"); //出力ウィンドウに「Hit　０」と表示
+		}
+
+		if (key[DIK_SPACE])  //スペースキーが押されていたら
+		{
+
+		}
 
 		// バックバッファの番号を取得（2つなので0番か1番）
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();

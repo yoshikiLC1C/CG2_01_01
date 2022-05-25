@@ -447,8 +447,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	assert(SUCCEEDED(result));
 
 	
-
-
+	// 値を書き込むと自動的に転送される
+	constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);
 
 	// ルートパラメータの設定
 	D3D12_ROOT_PARAMETER rootParam = {};
@@ -517,8 +517,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		}
 
-		// 値を書き込むと自動的に転送される
-		constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);
+		
 
 		// バックバッファの番号を取得（2つなので0番か1番）
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();

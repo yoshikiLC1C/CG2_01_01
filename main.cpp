@@ -24,6 +24,11 @@
 
 using namespace DirectX;// 数学ライブラリーのインクルード
 
+// 定数バッファ用データ構造体（マテリアル）
+struct ConstBufferDataMaterial {
+	XMFLOAT4 color; // 色（RGBA）
+};
+
 // ウィンドウプロシージャ
 LRESULT WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
 	// メッセージに応じてゲーム固有の処理を行う
@@ -255,6 +260,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		{-0.5f,-0.5f,0.0f},// 左下
 		{-0.5f,+0.5f,0.0f},// 左上
 		{+0.5f,-0.5f,0.0f},// 右下
+		{+0.5f,-0.5f,0.0f},// 右下
+		{-0.5f,+0.5f,0.0f},// 左上 
+		{+0.5f,+0.5f,0.0f},// 右上
 	};
 
 	// 頂点データ全体のサイズ = 頂点データ一つ分のサイズ * 頂点のデータの要素数
@@ -483,7 +491,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	
 
-
 	// ゲームループ
 	while (true) {
 		// メッセージがある？
@@ -613,9 +620,9 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		assert(SUCCEEDED(result));
 
 
-		//・・ DirectX毎フレーム処理　ここまで
+		
 
-		//・・ グラフィックコマンド
+		
 		
 
 		//・・ 画像入れ替え

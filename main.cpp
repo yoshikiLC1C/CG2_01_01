@@ -22,6 +22,7 @@
 #pragma comment(lib,"dinput8.lib")
 #pragma comment(lib,"dxguid.lib")
 
+#include <DirectXTex.h>
 
 using namespace DirectX;// 数学ライブラリーのインクルード
 
@@ -448,7 +449,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	pipelineDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	pipelineDesc.RasterizerState.DepthClipEnable = true;
 
-	
+
 	// レンダーターゲットのブレンド設定
 	D3D12_RENDER_TARGET_BLEND_DESC& blenddesc = pipelineDesc.BlendState.RenderTarget[0];
 	blenddesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL; // RBGA全てのチャンネルを描画
@@ -508,26 +509,45 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	ConstBufferDataMaterial* constMapMaterial = nullptr;
 	result = constBuffMaterial->Map(0, nullptr, (void**)&constMapMaterial); // マッピング
 	assert(SUCCEEDED(result));
-	
+
 	// 値を書き込むと自動的に転送される
 	constMapMaterial->color = XMFLOAT4(1, 0, 0, 0.5f);
 
 	// 横方向ピクセル数
-	const size_t textureWidth = 256;
-	// 縦方向ピクセル数
-	const size_t textureHeight = 256;
+	const size_t texWidth = 256;
 	// 配列の要素数
-	const size_t imageDataCount = textureWidth * textureHeight;
+	const size_t imageDataCount = texWidth * texWidth;
 	// 画像イメージデータ配列
 	XMFLOAT4* imageData = new XMFLOAT4[imageDataCount];
 
-	// 全ピクセルの色を初期化
-	for (size_t i = 0; i < imageDataCount; i++) {
-		imageData[i].x = 0.0f;
-		imageData[i].y = 1.0f;
-		imageData[i].z = 0.0f;
-		imageData[i].w = 1.0f;
+	//// 全ピクセルの色を初期化
+	//for (size_t i = 0; i < imageDataCount; i++) {
+	//	imageData[i].x = 0.0f;
+	//	imageData[i].y = 1.0f;
+	//	imageData[i].z = 0.0f;
+	//	imageData[i].w = 1.0f;
+	//}
+
+	TexMetadata metadata{};
+	ScratchImage scratchImg{};
+	// WICテクスチャのロード
+	result = LoadFromWICFile(
+		L"Resources/animal_panda_back.png",
+		WIC_FLAGS_NONE,
+		&metadata, scratchImg);
+
+	ScratchImage mipChain{};
+	// ミニマップ生成
+	result = GenerateMipMaps(
+		scratchImg.GetImages(), scratchImg.GetImageCount(), scratchImg.GetMetadata(),
+		TEX_FILTER_DEFAULT, 0, mipChain);
+	if (SUCCEEDED(result)) {
+		scratchImg = std::move(mipChain);
+		metadata = scratchImg.GetMetadata();
 	}
+
+	// 読み込んだディフューズテクスチャをSRGBとして扱う
+	metadata.format = MakeSRGB(metadata.format);
 
 	// テクスチャバッファ設定
 	// ヒープ設定
@@ -538,16 +558,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	// リソース設定
 	D3D12_RESOURCE_DESC textureResourceDesc{};
 	textureResourceDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	textureResourceDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	textureResourceDesc.Width = textureWidth;
-	textureResourceDesc.Height = textureHeight;
-	textureResourceDesc.DepthOrArraySize = 1;
-	textureResourceDesc.MipLevels = 1;
+	textureResourceDesc.Format = metadata.format;
+	textureResourceDesc.Width = metadata.width;
+	textureResourceDesc.Height = (UINT)metadata.height;
+	textureResourceDesc.DepthOrArraySize = (UINT16)metadata.arraySize;
+	textureResourceDesc.MipLevels = (UINT16)metadata.mipLevels;
 	textureResourceDesc.SampleDesc.Count = 1;
-	
+
 	// テクスチャバッファ生成
 	ID3D12Resource* texBuff = nullptr;
-	
+
 	result = device->CreateCommittedResource(
 		&textureHeapProp,
 		D3D12_HEAP_FLAG_NONE,
@@ -555,15 +575,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		D3D12_RESOURCE_STATE_GENERIC_READ,
 		nullptr,
 		IID_PPV_ARGS(&texBuff));
+
+	// 全ミニマップについて
+	for (size_t i = 0; i < metadata.mipLevels; i++) {
+		// ミニマップレベルを指定してイメージを取得
+		const Image* img = scratchImg.GetImage(i, 0, 0);
+		// テクスチャバッファにデータ転送
+		result = texBuff->WriteToSubresource(
+			(UINT)i,
+			nullptr,
+			img->pixels,
+			(UINT)img->rowPitch,
+			(UINT)img->slicePitch
+		);
+		assert(SUCCEEDED(result));
+	}
 	
-	// テクスチャバッファにデータ転送
-	result = texBuff->WriteToSubresource(
-		0,
-		nullptr,
-		imageData,
-		sizeof(XMFLOAT4) * textureWidth,
-		sizeof(XMFLOAT4) * textureHeight
-	);
 
 	// 元データ解放
 	delete[]imageData;
@@ -587,10 +614,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// シェーダリソースビュー設定
 	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	srvDesc.Format = resDesc.Format;
 	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MipLevels = resDesc.MipLevels;
 
 	// ハンドルの指す位置にシェーダーリソースビューを作成
 	device->CreateShaderResourceView(texBuff, &srvDesc, srvHandle);
@@ -653,7 +680,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 	result = device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState));
 	assert(SUCCEEDED(result));
 
-	
+
 
 	// ゲームループ
 	while (true) {
@@ -688,7 +715,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		}
 
-		
+
 
 		// バックバッファの番号を取得（2つなので0番か1番）
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
@@ -756,7 +783,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		commandList->IASetIndexBuffer(&ibView);
 
 		// 描画コマンド
-		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0 ,0);
+		commandList->DrawIndexedInstanced(_countof(indices), 1, 0, 0, 0);
 
 
 		// 4,　描画コマンドここまで
@@ -794,10 +821,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		assert(SUCCEEDED(result));
 
 
-		
 
-		
-		
+
+
+
 
 		//・・ 画像入れ替え
 

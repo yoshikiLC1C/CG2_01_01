@@ -266,10 +266,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// 頂点データ
 	Vertex vertices[] = {
-		{{ -50.0f, -50.0f, 50.0f}, {0.0f, 1.0f}},// 左下
-		{{ -50.0f,  50.0f, 50.0f}, {0.0f, 0.0f}},// 左上
-		{{  50.0f, -50.0f, 50.0f}, {1.0f, 1.0f}},// 右下
-		{{  50.0f,  50.0f, 50.0f}, {1.0f, 0.0f}},// 右上
+		{{ -50.0f, -50.0f, 0.0f}, {0.0f, 1.0f}},// 左下
+		{{ -50.0f,  50.0f, 0.0f}, {0.0f, 0.0f}},// 左上
+		{{  50.0f, -50.0f, 0.0f}, {1.0f, 1.0f}},// 右下
+		{{  50.0f,  50.0f, 0.0f}, {1.0f, 0.0f}},// 右上
 	};
 
 	unsigned short indices[] = {
@@ -575,8 +575,18 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		0.1f, 1000.0f
 	);
 
+	// ビュー変換行列
+	XMMATRIX matView;
+	XMFLOAT3 eye(0, 0, -100); // 視点座標
+	XMFLOAT3 target(0, 0, 0); // 注視点座標
+	XMFLOAT3 up(0, 1, 0);     // 上方向ベクトル
+
+	matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+
 	// 定数バッファに転送
-	constMapTransform->mat = matProjection;
+	constMapTransform->mat = matView * matProjection;
+
+	float angle = 0.0f; // カメラの回転角
 
 	// 横方向ピクセル数
 	const size_t texWidth = 256;
@@ -785,7 +795,21 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		}
 
+		// 回転
+		if (key[DIK_D] || key[DIK_A])
+		{
+			if (key[DIK_D]) { angle += XMConvertToRadians(1.0f); }
+			else if (key[DIK_A]) { angle -= XMConvertToRadians(1.0f); }
 
+			// angleラジアンだけY軸まわり回転。
+			eye.x = -100 * sinf(angle);
+			eye.z = -100 * cosf(angle);
+			
+			matView = XMMatrixLookAtLH(XMLoadFloat3(&eye), XMLoadFloat3(&target), XMLoadFloat3(&up));
+		}
+
+		// 定数バッファに転送
+		constMapTransform->mat = matView * matProjection;
 
 		// バックバッファの番号を取得（2つなので0番か1番）
 		UINT bbIndex = swapChain->GetCurrentBackBufferIndex();
